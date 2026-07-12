@@ -1,8 +1,10 @@
+import sys
+
 from transformers import GemmaTokenizerFast
 from ..models.gemma3moe import Gemma3MoEForCausalLM
 
 
-modelId = "google/gemma-3-270m-it"
+modelId = sys.argv[1] if len(sys.argv) > 1 else "google/gemma-3-270m-it"
 
 model = Gemma3MoEForCausalLM.from_pretrained(
     modelId,
@@ -11,9 +13,6 @@ model = Gemma3MoEForCausalLM.from_pretrained(
 )
 
 tokenizer = GemmaTokenizerFast.from_pretrained (modelId)
-
-for name, module in model.named_modules():
-    print (name, type(module), module.extra_repr())
 
 messages = [
     {
