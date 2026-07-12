@@ -45,7 +45,7 @@ from transformers.models.gemma3.modeling_gemma3 import (
     Gemma3PreTrainedModel,
     Gemma3RMSNorm,
 )
-from .configuration_gemma3moe import Gemma3MoEConfig, Gemma3MoETextConfig
+from .configuration_gemma3moe import Gemma3MoETextConfig
 
 
 class Gemma3MoEMLP(nn.Module):
@@ -71,7 +71,7 @@ class Gemma3MoEDecoderLayer(GradientCheckpointingLayer):
         self.config = config
         self.hidden_size = config.hidden_size
         self.layer_idx = layer_idx
-        self.self_attn = Gemma3MoEAttention(config=config, layer_idx=layer_idx)
+        self.self_attn = Gemma3Attention(config=config, layer_idx=layer_idx)
         self.mlp = Gemma3MoEMLP(config)
         self.input_layernorm = Gemma3MoERMSNorm(self.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = Gemma3MoERMSNorm(self.hidden_size, eps=config.rms_norm_eps)
@@ -136,7 +136,7 @@ class Gemma3MoETextModel(Gemma3PreTrainedModel):
         self.vocab_size = config.vocab_size
 
         # Gemma3MoE downcasts the below to bfloat16, causing sqrt(3072)=55.4256 to become 55.5. See https://github.com/huggingface/transformers/pull/29402
-        self.embed_tokens = Gemma3MoETextScaledWordEmbedding(
+        self.embed_tokens = Gemma3TextScaledWordEmbedding(
             config.vocab_size, config.hidden_size, self.padding_idx, embed_scale=self.config.hidden_size**0.5
         )
         self.layers = nn.ModuleList(
@@ -223,7 +223,7 @@ class Gemma3MoETextModel(Gemma3PreTrainedModel):
 
 
 @auto_docstring
-class Gemma3MoEForCausalLM(Gemma3MoEPreTrainedModel, GenerationMixin):
+class Gemma3MoEForCausalLM(Gemma3PreTrainedModel, GenerationMixin):
     _tied_weights_keys = {"lm_head.weight": "model.embed_tokens.weight"}
     _tp_plan = {"lm_head": "colwise_gather_output"}
     _pp_plan = {"lm_head": (["hidden_states"], ["logits"])}

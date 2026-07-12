@@ -1,4 +1,4 @@
-from typing import Any
+from typing import (Any, List)
 
 from huggingface_hub.dataclasses import strict
 
@@ -81,7 +81,7 @@ class Gemma3MoETextConfig(PreTrainedConfig):
     use_bidirectional_attention: bool | None = False
 
     # MoE-specific parameters
-    expert_geometry: [int] = None                # geometry of each MoE layer, which defaults to [3,3] for a 3x3 layer in set to None.
+    expert_geometry: List[int] | None = None     # geometry of each MoE layer, which defaults to [3,3] for a 3x3 layer if set to None.
     expert_router_training_type: str = "som"     # either "som" or "gradient"
     expert_router_topk: int = 2 
 
@@ -143,4 +143,4 @@ class Gemma3MoETextConfig(PreTrainedConfig):
         return kwargs
 
 
-__all__ = ["Gemma3MoEConfig", "Gemma3MoETextConfig"]
+__all__ = ["Gemma3MoETextConfig"]
