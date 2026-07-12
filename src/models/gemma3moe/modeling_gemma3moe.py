@@ -44,7 +44,7 @@ from transformers.models.gemma3.modeling_gemma3 import (
     Gemma3Attention,
     Gemma3PreTrainedModel,
     Gemma3RMSNorm,
-
+)
 from .configuration_gemma3moe import Gemma3MoEConfig, Gemma3MoETextConfig
 
 
