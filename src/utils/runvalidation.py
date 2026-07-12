@@ -32,7 +32,9 @@ else:
 tokenizer = GemmaTokenizerFast.from_pretrained (modelId)
 
 dataset = load_dataset(datasetId, datasetConfig, split=datasetSplit)
-tokenized_dataset = dataset.map(preprocess_qa_dataset, batched = True, remove_columns = dataset.column_names)
+tokenized_dataset = dataset.map(preprocess_qa_dataset, 
+                                batched = True, remove_columns = dataset.column_names,
+                                fn_kwargs = { tokenizer: tokenizer })
 
 
 

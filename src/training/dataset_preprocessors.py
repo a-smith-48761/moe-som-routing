@@ -1,7 +1,8 @@
+from transformers import { PreTrainedTokenizerBase }
 #
 # preprocess data sets for question/answer to appropriate format for LM input/output.
 #
-def preprocess_qa_dataset(examples):
+def preprocess_qa_dataset(examples, tokenizer:PreTrainedTokenizerBase = None):
     batch = {
         "input_ids": [],
         "attention_mask": [],
