@@ -204,7 +204,6 @@ def _bidirectional_window_overlay(sliding_window: int) -> Callable[[int, int, in
     return inner_mask
 
 
-@auto_docstring
 class Gemma3MoETextModel(Gemma3PreTrainedModel):
     config: Gemma3MoETextConfig
     input_modalities = ("text",)
@@ -244,7 +243,6 @@ class Gemma3MoETextModel(Gemma3PreTrainedModel):
         
     @merge_with_config_defaults
     @capture_outputs
-    @auto_docstring
     def forward(
         self,
         input_ids: torch.LongTensor | None = None,
@@ -315,7 +313,6 @@ class Gemma3MoETextModel(Gemma3PreTrainedModel):
         )
 
 
-@auto_docstring
 class Gemma3MoEForCausalLM(Gemma3PreTrainedModel, GenerationMixin):
     _tied_weights_keys = {"lm_head.weight": "model.embed_tokens.weight"}
     _tp_plan = {"lm_head": "colwise_gather_output"}
@@ -332,7 +329,6 @@ class Gemma3MoEForCausalLM(Gemma3PreTrainedModel, GenerationMixin):
         self.post_init()
 
     @can_return_tuple
-    @auto_docstring
     def forward(
         self,
         input_ids: torch.LongTensor | None = None,

@@ -10,7 +10,6 @@ from transformers.models.siglip import SiglipVisionConfig
 logger = logging.get_logger(__name__)
 
 
-@auto_docstring(checkpoint="google/gemma-3-4b-it")
 @strict
 class Gemma3MoETextConfig(PreTrainedConfig):
     r"""
@@ -35,16 +34,6 @@ class Gemma3MoETextConfig(PreTrainedConfig):
         training based on Self-Organizing Maps (Kohonen, *The Self-Organizing Map*, 1990).
     expert_router_topk (`int`, *optional*, defaults to `2`):
         The number of experts to activate for each input to each layer.
-
-    ```python
-    >>> from transformers import Gemma3MoETextModel, Gemma3MoETextConfig
-    >>> # Initializing a Gemma3MoEText gemma3_text-7b style configuration
-    >>> configuration = Gemma3MoETextConfig()
-    >>> # Initializing a model from the gemma3_text-7b style configuration
-    >>> model = Gemma3MoETextModel(configuration)
-    >>> # Accessing the model configuration
-    >>> configuration = model.config
-    ```
     """
 
     model_type = "gemma3moe"
