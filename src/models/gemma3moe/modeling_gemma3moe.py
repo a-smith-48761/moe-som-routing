@@ -89,7 +89,7 @@ class Gemma3MoEMLP(nn.Module):
         topk_softmax = torch.softmax(topk_values, dim=-1)
 
         # Create a weight matrix to combine the outputs of the top-k experts (shape: (batch_size, seq_len, num_experts))
-        weight_matrix = torch.zeros(batch_size, seq_len, self.num_experts, device=x.device)
+        weight_matrix = torch.zeros(batch_size, seq_len, self.num_experts, device=x.device, dtype=topk_softmax.dtype)
         weight_matrix.scatter_(dim=2, index=topk_indices, src=topk_softmax)
 
         # Initialize the output tensor
