@@ -15,12 +15,13 @@ src = Gemma3TextModel.from_pretrained(
 config = Gemma3MoETextConfig()
 config.update (src.config.to_dict())
 
-print ("Configuration:\n", config.to_diff_dict())
-
 # FIXME would be better if we could specify config on the command line
 
 config.expert_geometry = [3,3]
 config.expert_layer_indices = [3,4,5,6,7,8,9,10,11,12] # upcycle 10 layers in the middle of the network
+
+print ("Configuration:\n", config.to_diff_dict())
+
 
 dest = Gemma3MoETextModel(config)
 dest.update_from_dense (src)
