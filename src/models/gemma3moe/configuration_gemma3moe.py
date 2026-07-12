@@ -82,6 +82,7 @@ class Gemma3MoETextConfig(PreTrainedConfig):
 
     # MoE-specific parameters
     expert_geometry: List[int] | None = None     # geometry of each MoE layer, which defaults to [3,3] for a 3x3 layer if set to None.
+    expert_layer_indices: List[int] | None = None  # indices of the layers that are MoE layers, which defaults to no layers being MoE layers if set to None.
     expert_router_training_type: str = "som"     # either "som" or "gradient"
     expert_router_topk: int = 2 
 
@@ -101,7 +102,8 @@ class Gemma3MoETextConfig(PreTrainedConfig):
             ]
         if self.expert_geometry is None:
             self.expert_geometry = [3, 3]  # default to a 3x3 MoE layer
-        
+        if self.expert_layer_indices is None:
+            self.expert_layer_indices = []  # default to no MoE layers
 
         super().__post_init__(**kwargs)
 

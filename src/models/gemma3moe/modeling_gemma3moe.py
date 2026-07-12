@@ -36,48 +36,129 @@ from transformers.utils.generic import maybe_autocast, merge_with_config_default
 from transformers.utils.output_capturing import capture_outputs
 from transformers.models.auto import AutoModel
 from transformers.models.gemma3.modeling_gemma3 import (
-    Gemma3ModelOutputWithPast,
-    Gemma3CausalLMOutputWithPast,
     Gemma3TextScaledWordEmbedding,
     Gemma3MLP,
+    Gemma3DecoderLayer,
     Gemma3RotaryEmbedding,
     Gemma3Attention,
     Gemma3PreTrainedModel,
     Gemma3RMSNorm,
+    Gemma3TextModel
 )
 from .configuration_gemma3moe import Gemma3MoETextConfig
 
 
 class Gemma3MoEMLP(nn.Module):
+    """
+    A mixture of experts MLP layer with configurable router update rule.
+    Each expert is a standard MLP layer, and the router is a linear layer that outputs a distribution over the experts.
+    Router update may depend on a 2-dimensional array of experts, with the location of expert (i,j) being stored at index i * num_experts_per_row + j.
+     The router update rule is specified by the `expert_router_training_type` parameter in the config, which can be either "som" or "gradient".
+    """
     def __init__(self, config: Gemma3MoETextConfig):
         super().__init__()
         self.config = config
         self.hidden_size = config.hidden_size
-        self.intermediate_size = config.intermediate_size
-        self.gate_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
-        self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
-        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
-        self.act_fn = ACT2FN[config.hidden_activation]
+        self.num_experts = config.expert_geometry[0] * config.expert_geometry[1]
+        self.experts = nn.ModuleList([Gemma3MLP(config) for x in range(self.num_experts)])
+        self.gate_proj = nn.Linear(config.hidden_size, self.num_experts, bias=False)
+        self.topk = config.expert_router_topk
+        self.update_rule = config.expert_router_training_type
 
+    def update_from_dense(
+        self,
+        dense_mlp: Gemma3MLP,
+    ) -> "Gemma3MoEMLP":
+        """
+        Convert a traditional Gemma3MLP to an MoE equivalent by duplicating its weights
+        """
+
+        for expert in self.experts:
+            expert.load_state_dict(dense_mlp.state_dict())
+
+    
     def forward(self, x):
-        down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
-        return down_proj
+        # x's shape is (batch_size, seq_len, hidden_size)
+        batch_size, seq_len, _ = x.shape
+
+        # Compute the router logits (shape: (batch_size, seq_len, num_experts))
+        router_logits = self.gate_proj(x)
+        # Compute the indices and values for the top-k experts for each token (shape: (batch_size, seq_len, topk))
+        topk_values, topk_indices = torch.topk(router_logits, self.topk, dim=-1)
+        # Compute the weights for each expert using softmax over the top-k experts (shape: (batch_size, seq_len, topk))
+        topk_softmax = torch.softmax(topk_values, dim=-1)
+
+        # Create a weight matrix to combine the outputs of the top-k experts (shape: (batch_size, seq_len, num_experts))
+        weight_matrix = torch.zeros(batch_size, seq_len, self.num_experts, device=x.device)
+        weight_matrix.scatter_(dim=2, index=topk_indices, src=topk_softmax)
+
+        # Initialize the output tensor
+        output = torch.zeros_like(x)
+
+        # Combine the outputs of all experts weighted by the weight matrix
+        for i in range(self.num_experts):
+            # Find indices of tokens that are routed to expert i
+            indices = torch.where(weight_matrix[..., i] > 0) # tuple of (batch_indices, seq_indices)
+            if len(indices[0]) != 0:
+                # Route the tokens to the expert and compute the output
+                expert_output = self.experts[i](x[indices]) # shape: (num_tokens_routed_to_expert_i, hidden_size)
+                
+                # Weight the expert output by the corresponding weights
+                weighted_expert_output = expert_output * weight_matrix[indices[0], indices[1], i].unsqueeze(-1) # shape: (num_tokens_routed_to_expert_i, hidden_size)
+
+                # Scatter the weighted expert output back to the output tensor
+                output[indices] += weighted_expert_output
+                
+        return output
 
 
 
 class Gemma3MoEDecoderLayer(GradientCheckpointingLayer):
+    """
+    A clone of the Gemma3DecoderLayer, but with a mixture of experts MLP layer instead of a standard MLP layer.
+    The mixture of experts MLP layer is only used if the layer index is in the list of expert layer indices specified in the config. Otherwise, a standard MLP layer is used.
+    """
     def __init__(self, config: Gemma3MoETextConfig, layer_idx: int):
         super().__init__()
         self.config = config
         self.hidden_size = config.hidden_size
         self.layer_idx = layer_idx
         self.self_attn = Gemma3Attention(config=config, layer_idx=layer_idx)
-        self.mlp = Gemma3MoEMLP(config)
+        if layer_idx in config.expert_layer_indices:
+            self.mlp = Gemma3MoEMLP(config)
+        else:
+            self.mlp = Gemma3MLP(config)
         self.input_layernorm = Gemma3RMSNorm(self.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = Gemma3RMSNorm(self.hidden_size, eps=config.rms_norm_eps)
         self.pre_feedforward_layernorm = Gemma3RMSNorm(self.hidden_size, eps=config.rms_norm_eps)
         self.post_feedforward_layernorm = Gemma3RMSNorm(self.hidden_size, eps=config.rms_norm_eps)
 
+    def update_from_dense(
+        self,
+        config: Gemma3MoETextConfig,
+        layer_idx: int,
+        dense_decoder: Gemma3DecoderLayer
+    ) -> "Gemma3MoEMLP":
+        """
+        Convert a traditional Gemma3DecoderLayer to an MoE equivalent by copying its attention layer
+        """
+
+        # copy state from dense mlp to the new module's mlp/experts
+        dense_mlp = dense_decoder.mlp
+        if isinstance(self.mlp, Gemma3MoEMLP):
+            self.mlp.update_from_dense(dense_mlp)
+        else:
+            self.mlp.load_state_dict (dense_mlp.state_dict())
+
+        # copy state from attention to the new module
+        self.self_attn.load_state_dict (dense_decoder.self_attn.state_dict())
+        # and copy normalisation state
+        self.input_layernorm.load_state_dict (dense_decoder.input_layernorm.state_dict())
+        self.post_attention_layernorm.load_state_dict (dense_decoder.post_attention_layernorm.state_dict())
+        self.pre_feedforward_layernorm.load_state_dict (dense_decoder.pre_feedforward_layernorm.state_dict())
+        self.post_feedforward_layernorm.load_state_dict (dense_decoder.post_feedforward_layernorm.state_dict())
+                                                          
+        
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -149,6 +230,20 @@ class Gemma3MoETextModel(Gemma3PreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
+    def update_from_dense (self, model : Gemma3TextModel):
+        """
+        Copy weights from an existing dense model into all appropriate weights in this model, including replacing dense layers into each expert for layers using a mixture of experts.
+        """
+        if len(model.layers) != len(self.layers):
+            raise ValueError(f"Model layer count does not match [${len(model.layers)} rather than ${len(self.layers)}]")
+        
+        # convert layers where necessary:
+        for i in range(len(model.layers)):
+            self.layers[i].update_from_dense (model.layers[i])
+        # these don't need conversion so can just be copied:
+        self.norm.load_state_dict(model.norm.state_dict())
+        self.embed_tokens.load_state_dict(model.embed_tokens.state_dict())
+        
     @merge_with_config_defaults
     @capture_outputs
     @auto_docstring
