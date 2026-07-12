@@ -23,6 +23,18 @@ class Gemma3MoETextConfig(PreTrainedConfig):
     use_bidirectional_attention (`bool`, *optional*, defaults to `False`):
         If True, the model will attend to all text tokens instead of using a causal mask. This does not change
         behavior for vision tokens.
+    expert_geometry (`List[int]`, *optional*, defaults to `[3,3]`):
+        Horizontal and vertical dimensions of the grid of experts used for each expert layer. If using the
+        gradient update rule for routing the precise shape does not matter other than to determine the total
+        number of experts, but for SOM updates the shape is used during training.
+    expert_layer_indices (`List[int]`, *optional*):
+        List of layer indices to use mixture of experts for. Any layer not in this list will be initialised only
+        with a single MLP rather than the number of experts listed above. By default, no layers are chosen.
+    expert_router_training_type (`str`, *optional*, defaults to `'gradient'`):
+        Either `'gradient'` to use traditional gradient-based training of the routing network or `'som'` to use
+        training based on Self-Organizing Maps (Kohonen, *The Self-Organizing Map*, 1990).
+    expert_router_topk (`int`, *optional*, defaults to `2`):
+        The number of experts to activate for each input to each layer.
 
     ```python
     >>> from transformers import Gemma3MoETextModel, Gemma3MoETextConfig
@@ -35,7 +47,7 @@ class Gemma3MoETextConfig(PreTrainedConfig):
     ```
     """
 
-    model_type = "gemma3_text"
+    model_type = "gemma3moe"
     keys_to_ignore_at_inference = ["past_key_values"]
     base_model_tp_plan = {
         "layers.*.self_attn.q_proj": "colwise",
