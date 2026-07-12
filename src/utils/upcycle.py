@@ -12,13 +12,14 @@ src = Gemma3TextModel.from_pretrained(
     device_map="cuda"
 )
 
-config = Gemma3MoETextConfig()
-config.update (src.config.to_dict())
+src_config_dict = src.config.to_dict()
+src_config_dict.pop ("model_type", None)
+src_config_dict.pop ("architectures", None)
 
-# FIXME would be better if we could specify config on the command line
-
-config.expert_geometry = [3,3]
-config.expert_layer_indices = [3,4,5,6,7,8,9,10,11,12] # upcycle 10 layers in the middle of the network
+config = Gemma3MoETextConfig(**src_config_dict, 
+                            expert_geometry = [3,3],                   # 3x3 array of experts
+                            expert_layer_indices = list(range(3,12)),  # upcycle 10 layers in the middle of the network
+                            expert_router_training_type="gradient")    # default to gradient training
 
 print ("Configuration:\n", config.to_diff_dict())
 
