@@ -62,20 +62,20 @@ def preprocess_answer_only(examples):
             },
         ]
 
-        prompt_ids = tokenizer.apply_chat_template(
+        prompt = tokenizer.apply_chat_template(
             prompt_messages,
             tokenize=True,
             add_generation_prompt=True,
         )
 
-        full_ids = tokenizer.apply_chat_template(
+        full = tokenizer.apply_chat_template(
             full_messages,
             tokenize=True,
             add_generation_prompt=False,
         )
 
-        full_ids = full_ids[:512]
-        prompt_length = min(len(prompt_ids), len(full_ids))
+        full_ids = full.input_ids[:512]
+        prompt_length = min(len(prompt.input_ids), len(full_ids))
 
         labels = full_ids.copy()
         labels[:prompt_length] = [-100] * prompt_length
