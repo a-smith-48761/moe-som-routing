@@ -1,5 +1,4 @@
 from typing import Any
-from dataclasses import ( dataclass, field )
 
 from huggingface_hub.dataclasses import strict
 
@@ -13,7 +12,6 @@ logger = logging.get_logger(__name__)
 
 @auto_docstring(checkpoint="google/gemma-3-4b-it")
 @strict
-@dataclass
 class Gemma3MoETextConfig(PreTrainedConfig):
     r"""
     query_pre_attn_scalar (`float`, *optional*, defaults to 256):
@@ -83,7 +81,7 @@ class Gemma3MoETextConfig(PreTrainedConfig):
     use_bidirectional_attention: bool | None = False
 
     # MoE-specific parameters
-    expert_geometry: [int] = field(default_factory=lambda: [3, 3])
+    expert_geometry: [int] = None                # geometry of each MoE layer, which defaults to [3,3] for a 3x3 layer in set to None.
     expert_router_training_type: str = "som"     # either "som" or "gradient"
     expert_router_topk: int = 2 
 
@@ -101,6 +99,9 @@ class Gemma3MoETextConfig(PreTrainedConfig):
                 "sliding_attention" if bool((i + 1) % self._sliding_window_pattern) else "full_attention"
                 for i in range(self.num_hidden_layers)
             ]
+        if self.expert_geometry is None:
+            self.expert_geometry = [3, 3]  # default to a 3x3 MoE layer
+        
 
         super().__post_init__(**kwargs)
 
