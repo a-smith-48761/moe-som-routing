@@ -11,6 +11,7 @@ src = Gemma3TextModel.from_pretrained(
     modelId,
     device_map="cuda"
 )
+src_tokenizer = GemmaTokenizerFast.from_pretrained (modelId)
 
 src_config_dict = src.config.to_dict()
 src_config_dict.pop ("model_type", None)
@@ -29,6 +30,7 @@ dest.update_from_dense (src)
 
 print ("Saving " + outputCheckpoint)
 dest.save_pretrained (outputCheckpoint)
+src_tokenizer.save_pretrained (outputCheckpoint)
 
 print ("Done")
 
