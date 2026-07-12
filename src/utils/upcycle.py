@@ -19,7 +19,7 @@ src_config_dict.pop ("architectures", None)
 
 config = Gemma3MoETextConfig(**src_config_dict, 
                             expert_geometry = [3,3],                   # 3x3 array of experts
-                            expert_layer_indices = list(range(3,12)),  # upcycle 10 layers in the middle of the network
+                            expert_layer_indices = list(range(2,16)),  # upcycle 14 layers in the middle of the network
                             expert_router_training_type="gradient")    # default to gradient training
 
 print ("Configuration:\n", config.to_diff_dict())
