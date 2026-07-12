@@ -12,11 +12,9 @@ model = Gemma3MoEForCausalLM.from_pretrained(
     attn_implementation="sdpa" # scalde dot product attention, autodetect best available implementation
 )
 
-totalParameters = 0
 for name, module in model.named_modules():
    parameterCount = sum(p.numel() for p in module.parameters())
    print (name, type(module), module.extra_repr(), parameterCount)
-   totalParameters += parameterCount
 
-print (f"Total parameters: ${totalParameters}")
+
 
