@@ -1,4 +1,5 @@
 from typing import Any
+from dataclasses import ( dataclass, field )
 
 from huggingface_hub.dataclasses import strict
 
@@ -12,6 +13,7 @@ logger = logging.get_logger(__name__)
 
 @auto_docstring(checkpoint="google/gemma-3-4b-it")
 @strict
+@dataclass
 class Gemma3MoETextConfig(PreTrainedConfig):
     r"""
     query_pre_attn_scalar (`float`, *optional*, defaults to 256):
@@ -81,7 +83,7 @@ class Gemma3MoETextConfig(PreTrainedConfig):
     use_bidirectional_attention: bool | None = False
 
     # MoE-specific parameters
-    expert_geometry: [int] = [3, 3]
+    expert_geometry: [int] = field(default_factory=lambda: [3, 3])
     expert_router_training_type: str = "som"     # either "som" or "gradient"
     expert_router_topk: int = 2 
 
