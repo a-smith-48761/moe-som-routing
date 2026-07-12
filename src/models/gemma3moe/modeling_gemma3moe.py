@@ -135,8 +135,6 @@ class Gemma3MoEDecoderLayer(GradientCheckpointingLayer):
 
     def update_from_dense(
         self,
-        config: Gemma3MoETextConfig,
-        layer_idx: int,
         dense_decoder: Gemma3DecoderLayer
     ) -> "Gemma3MoEMLP":
         """
