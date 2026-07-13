@@ -1,4 +1,5 @@
 import argparse
+import torch
 
 from transformers import GemmaTokenizerFast, Gemma3ForCausalLM, Trainer
 from datasets import load_dataset
@@ -109,14 +110,14 @@ def print_sample_predictions(
             prompt_messages,
             tokenize=True,
             add_generation_prompt=True,
+            return_dict=True,
+            return_tensors="pt"
         )
 
         generated = model.generate(
-            input_ids=prompt.input_ids,
-            attention_mask=prompt.attention_mask,
+            **(prompt.to(model.device)),
             max_new_tokens=max_new_tokens,
-            do_sample=False,
-            pad_token_id=tokenizer.eos_token_id,
+            cache_implementation="dynamic"
         )
 
         generated_text = tokenizer.decode(
