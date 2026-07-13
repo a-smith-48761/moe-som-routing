@@ -1,4 +1,4 @@
-from transformers import { PreTrainedTokenizerBase }
+from transformers import PreTrainedTokenizerBase
 #
 # preprocess data sets for question/answer to appropriate format for LM input/output.
 #
