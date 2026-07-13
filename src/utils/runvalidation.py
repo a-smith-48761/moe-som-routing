@@ -131,7 +131,7 @@ def print_sample_predictions(
 
         print("--- Sample", sample_index, "---")
         print("QUESTION:", question)
-        print("INPUT PROMPT:", prompt_text)
+        print("EXPECTED ANSWER:", item.get("answer"))
         print("PREDICTED OUTPUT:", generated_text)
         print()
 
