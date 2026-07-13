@@ -5,7 +5,7 @@ from transformers import GemmaTokenizerFast, Gemma3ForCausalLM, Trainer
 from datasets import load_dataset
 
 from ..models.gemma3moe import Gemma3MoEForCausalLM
-from ..training import preprocess_qa_dataset, CausalLMCollator
+from ..training import preprocess_qa_dataset, CausalLMCollator, load_model
 
 
 DEFAULT_MODEL_ID = "google/gemma-3-270m-it"
@@ -63,21 +63,6 @@ def parse_args():
         help="Maximum number of new tokens to generate for each sample prediction."
     )
     return parser.parse_args()
-
-
-def load_model(model_id: str):
-    if model_id.startswith("google/"):
-        return Gemma3ForCausalLM.from_pretrained(
-            model_id,
-            device_map="cuda",
-            attn_implementation="sdpa",
-        )
-
-    return Gemma3MoEForCausalLM.from_pretrained(
-        model_id,
-        device_map="cuda",
-        attn_implementation="sdpa",
-    )
 
 
 def print_sample_predictions(

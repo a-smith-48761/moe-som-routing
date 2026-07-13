@@ -82,9 +82,9 @@ class Gemma3MoETextConfig(PreTrainedConfig):
     use_bidirectional_attention: bool | None = False
 
     # MoE-specific parameters
-    expert_geometry: List[int] | None = None     # geometry of each MoE layer, which defaults to [3,3] for a 3x3 layer if set to None.
+    expert_geometry: List[int] | None = None       # geometry of each MoE layer, which defaults to [3,3] for a 3x3 layer if set to None.
     expert_layer_indices: List[int] | None = None  # indices of the layers that are MoE layers, which defaults to no layers being MoE layers if set to None.
-    expert_router_training_type: str = "som"     # either "som" or "gradient"
+    expert_router_type: str = "som"                # either "som", "gradient", or "distance-gradient"
     expert_router_topk: int = 2 
 
     default_theta = {"global": 1_000_000.0, "local": 10_000.0}

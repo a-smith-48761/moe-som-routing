@@ -47,13 +47,36 @@ from transformers.models.gemma3.modeling_gemma3 import (
 )
 from .configuration_gemma3moe import Gemma3MoETextConfig
 
+class DistanceLayer(nn.Module):
+    """
+    A layer that calculates the squared distance between each input vector and a set of prototype vectors
+    """
+    def __init__(self, input_dimension: int, number_of_prototypes: int):
+        super().__init__()
+
+        self.input_dimension = input_dimension
+        self.number_of_prototypes = number_of_prototypes
+
+        self.prototypes = nn.Parameter(
+            torch.randn(number_of_prototypes, input_dimension)
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.shape[-1] != self.input_dimension:
+            raise ValueError(
+                f"Expected input dimension {self.input_dimension}, "
+                f"but received {x.shape[-1]}"
+            )
+
+        differences = x.unsqueeze(-2) - self.prototypes
+        return differences.square().sum(dim=-1)
 
 class Gemma3MoEMLP(nn.Module):
     """
     A mixture of experts MLP layer with configurable router update rule.
     Each expert is a standard MLP layer, and the router is a linear layer that outputs a distribution over the experts.
     Router update may depend on a 2-dimensional array of experts, with the location of expert (i,j) being stored at index i * num_experts_per_row + j.
-     The router update rule is specified by the `expert_router_training_type` parameter in the config, which can be either "som" or "gradient".
+    The router is specified by the `expert_router_type` parameter in the config, which can be either "som", "gradient", or "distance-gradient".
     """
     def __init__(self, config: Gemma3MoETextConfig):
         super().__init__()
@@ -61,9 +84,16 @@ class Gemma3MoEMLP(nn.Module):
         self.hidden_size = config.hidden_size
         self.num_experts = config.expert_geometry[0] * config.expert_geometry[1]
         self.experts = nn.ModuleList([Gemma3MLP(config) for x in range(self.num_experts)])
-        self.gate_proj = nn.Linear(config.hidden_size, self.num_experts, bias=False)
+        match config.expert_router_type:
+            case "som":                 raise NotImplementedError("som routers not implemented")
+            case "gradient":            self.router = nn.Linear(config.hidden_size, self.num_experts, bias=False)
+            case "distance-gradient":   self.router = DistanceLayer(config.hidden_size, self.num_experts)
+        
+        # A learnable parameter for the temperature of the softmax
+        self.log_beta = nn.Parameter(torch.tensor(0.0))
+
         self.topk = config.expert_router_topk
-        self.update_rule = config.expert_router_training_type
+        self.router_type = config.expert_router_type
 
     def update_from_dense(
         self,
@@ -81,12 +111,21 @@ class Gemma3MoEMLP(nn.Module):
         # x's shape is (batch_size, seq_len, hidden_size)
         batch_size, seq_len, _ = x.shape
 
-        # Compute the router logits (shape: (batch_size, seq_len, num_experts))
-        router_logits = self.gate_proj(x)
+        # Compute the router logits/distances (shape: (batch_size, seq_len, num_experts))
+        router_scores = self.router(x)
+        
+        # softmax temperature
+        beta = self.log_beta.exp() # beta > 0
+
+        # For a distance-based router (either "som" or "distance-gradient") we need beta to be negative 
+        if self.router_type == "som" or self.router_type == "distance-gradient":
+            beta = - beta
+
         # Compute the indices and values for the top-k experts for each token (shape: (batch_size, seq_len, topk))
-        topk_values, topk_indices = torch.topk(router_logits, self.topk, dim=-1)
+        topk_values, topk_indices = torch.topk(router_scores, self.topk, dim=-1)
+
         # Compute the weights for each expert using softmax over the top-k experts (shape: (batch_size, seq_len, topk))
-        topk_softmax = torch.softmax(topk_values, dim=-1)
+        topk_softmax = torch.softmax(beta * topk_values, dim=-1)
 
         # Create a weight matrix to combine the outputs of the top-k experts (shape: (batch_size, seq_len, num_experts))
         weight_matrix = torch.zeros(batch_size, seq_len, self.num_experts, device=x.device, dtype=topk_softmax.dtype)
