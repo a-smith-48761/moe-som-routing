@@ -22,23 +22,26 @@ def parse_args():
     )
     parser.add_argument(
         "--model",
+        dest="model_id",
         default=DEFAULT_MODEL_ID,
         help="Hugging Face model identifier or local directory containing model to load."
     )
     parser.add_argument(
         "--dataset",
+        dest="dataset_id",
         default=DEFAULT_DATASET_ID,
         help="Hugging Face dataset identifier to load."
     )
     parser.add_argument(
         "--split",
+        dest="dataset_split",
         default=DEFAULT_DATASET_SPLIT,
         help="Dataset split to evaluate on."
     )
     parser.add_argument(
         "--config",
+        dest="dataset_config",
         default=DEFAULT_DATASET_CONFIG,
-        help="Dataset configuration name."
     )
     parser.add_argument(
         "--sample-every",
