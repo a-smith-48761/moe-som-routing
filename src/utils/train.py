@@ -3,7 +3,7 @@ import torch
 
 from transformers import GemmaTokenizerFast, Gemma3ForCausalLM, Trainer, TrainingArguments
 from datasets import load_dataset
-from bitsandbytes import AdamW8Bit
+from bitsandbytes.optim import AdamW8bit
 
 from ..models.gemma3moe import Gemma3MoEForCausalLM
 from ..training import preprocess_qa_dataset, CausalLMCollator, load_model
@@ -11,7 +11,7 @@ from ..training import preprocess_qa_dataset, CausalLMCollator, load_model
 DEFAULT_MODEL_ID = "google/gemma-3-270m-it"
 DEFAULT_DATASET_ID = "openai/gsm8k"
 DEFAULT_DATASET_SPLIT = "train"
-DEFAULT_DATASET_SPLIT = "test"
+DEFAULT_DATASET_EVAL_SPLIT = "test"
 DEFAULT_DATASET_CONFIG = "main"
 DEFAULT_OUTPUT_DIR = "output/snapshots"
 
@@ -69,10 +69,10 @@ def parse_args():
 
 
 def build_composite_optimizer (model):
-    optimizer_parameters = [p for n, p in model.named_parameters() ]    // FIXME: exclude routers if the network is using som training
+    optimizer_parameters = [p for n, p in model.named_parameters() ]    # FIXME: exclude routers if the network is using som training
 
-    if isinstance(model, Gemma3ForCausalLM) or model.config.expert_router_training_type == "gradient":
-        return AdamW8Bit(optimizer_parameters)
+    if isinstance(model, Gemma3ForCausalLM) or model.config.expert_router_type != "som":
+        return AdamW8bit(optimizer_parameters)
     else:
         raise NotImplemented("SOM router training not implemented yet")
 
@@ -101,8 +101,8 @@ def main() -> None:
     compile_args = {}
     if args.compile:
         compile_args = {
-            "compile": True,
-            "compile_backend": args.compile_backend
+            "torch_compile": True,
+            "torch_compile_backend": args.compile_backend
         }
 
     trainingArguments = TrainingArguments(
@@ -124,14 +124,13 @@ def main() -> None:
         processing_class=tokenizer,
         train_dataset = tokenized_dataset,
         eval_dataset = tokenized_eval_dataset,
-        tokenizer=tokenizer,
         optimizers=(
             build_composite_optimizer (model),
             None    # use the default schedule
         )
     )
 
-    metrics = trainer.train(eval_dataset=tokenized_dataset)
+    metrics = trainer.train()
     trainer.save_model ()
 
     print(metrics)
