@@ -62,4 +62,38 @@ def preprocess_qa_dataset(examples, tokenizer:PreTrainedTokenizerBase = None):
 
     return batch
 
-__all__ = ["preprocess_qa_dataset"]
+
+#
+# Filter for removing examples that have no labels from tokenized datasets
+#
+
+def filter_require_label_presence (example):
+    return sum(label != -100 for label in example["labels"]) > 0
+
+#
+# check a dataset doesn't contain items with no labels
+#
+
+# check that the training dataset is valid before continuin
+def count_valid_labels(example):
+    return sum(label != -100 for label in example["labels"])
+
+def check_dataset_has_labels (tokenized_dataset):
+    invalid_indices = [
+        index
+        for index, example in enumerate(tokenized_dataset)
+        if count_valid_labels(example) == 0
+    ]
+
+    if len(invalid_indices) > 0:
+        print("Examples with no valid labels:", len(invalid_indices))
+        print("First indices:", invalid_indices[:20])
+        print("Number of input tokens:", [ len(tokenized_dataset[i]["input_ids"]) for i in invalid_indices ])
+        #item = tokenized_dataset[invalid_indices[0]]
+        #print(item["problem"] if "problem" in item else item["question"])
+        #print(item["answer"])
+        
+        return False
+    return True
+
+__all__ = ["preprocess_qa_dataset", "filter_require_label_presence", "check_dataset_has_labels"]

@@ -6,7 +6,7 @@ from datasets import load_dataset
 from bitsandbytes.optim import AdamW8bit
 
 from ..models.gemma3moe import Gemma3MoEForCausalLM
-from ..training import preprocess_qa_dataset, CausalLMCollator, load_model
+from ..training import preprocess_qa_dataset, filter_require_label_presence, CausalLMCollator, load_model
 
 DEFAULT_MODEL_ID = "google/gemma-3-270m-it"
 DEFAULT_DATASET_ID = "openai/gsm8k"
@@ -110,34 +110,15 @@ def main() -> None:
         batched=True,
         #remove_columns=dataset.column_names,
         fn_kwargs={"tokenizer": tokenizer},
-    )
+    ).filter (filter_require_label_presence)
+    
     tokenized_eval_dataset = eval_dataset.map(
         preprocess_qa_dataset,
         batched=True,
         #remove_columns=dataset.column_names,
         fn_kwargs={"tokenizer": tokenizer},
-    )
+    ).filter (filter_require_label_presence)
 
-    # check that the training dataset is valid before continuin
-    def count_valid_labels(example):
-        return sum(label != -100 for label in example["labels"])
-
-
-    invalid_indices = [
-        index
-        for index, example in enumerate(tokenized_dataset)
-        if count_valid_labels(example) == 0
-    ]
-
-    if len(invalid_indices) > 0:
-        print("Examples with no valid labels:", len(invalid_indices))
-        print("First indices:", invalid_indices[:20])
-        print("Number of input tokens:", [ len(tokenized_dataset[i]["input_ids"]) for i in invalid_indices ])
-        #item = tokenized_dataset[invalid_indices[0]]
-        #print(item["problem"] if "problem" in item else item["question"])
-        #print(item["answer"])
-        
-        return
 
     compile_args = {}
     if args.compile:
