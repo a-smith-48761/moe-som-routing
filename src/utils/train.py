@@ -14,6 +14,7 @@ DEFAULT_DATASET_SPLIT = "train"
 DEFAULT_DATASET_EVAL_SPLIT = "test"
 DEFAULT_DATASET_CONFIG = "main"
 DEFAULT_OUTPUT_DIR = "output/snapshots"
+DEFAULT_SEED = 44961561
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -65,6 +66,19 @@ def parse_args():
         default="inductor",
         help="PyTorch compile backend to use"
     )
+    parser.add_argument(
+        "--create-eval-split",
+        action="store_true",
+        dest="create_eval_split",
+        help="Use 10% of the training split to create an evaluation split"
+    )
+    parser.add_argument(
+        "--seed",
+        dest="seed",
+        type=int,
+        default=DEFAULT_SEED,
+        help="Random seed for creating splits and/or shuffling"
+    )
     return parser.parse_args()
 
 
@@ -83,20 +97,47 @@ def main() -> None:
     tokenizer = GemmaTokenizerFast.from_pretrained(args.model_id)
 
     dataset = load_dataset(args.dataset_id, args.dataset_config, split=args.dataset_split)
+
+    if args.create_eval_split:
+        created_splits = dataset.train_test_split (test_size=0.1, seed=args.seed ^ 31415)
+        dataset = created_splits["train"]
+        eval_dataset = created_splits["test"]
+    else:
+        eval_dataset =  load_dataset(args.dataset_id, args.dataset_config, split=args.dataset_eval_split)
+        
     tokenized_dataset = dataset.map(
         preprocess_qa_dataset,
         batched=True,
-        remove_columns=dataset.column_names,
+        #remove_columns=dataset.column_names,
         fn_kwargs={"tokenizer": tokenizer},
     )
-
-    eval_dataset =  load_dataset(args.dataset_id, args.dataset_config, split=args.dataset_eval_split)
     tokenized_eval_dataset = eval_dataset.map(
         preprocess_qa_dataset,
         batched=True,
-        remove_columns=dataset.column_names,
+        #remove_columns=dataset.column_names,
         fn_kwargs={"tokenizer": tokenizer},
     )
+
+    # check that the training dataset is valid before continuin
+    def count_valid_labels(example):
+        return sum(label != -100 for label in example["labels"])
+
+
+    invalid_indices = [
+        index
+        for index, example in enumerate(tokenized_dataset)
+        if count_valid_labels(example) == 0
+    ]
+
+    if len(invalid_indices) > 0:
+        print("Examples with no valid labels:", len(invalid_indices))
+        print("First indices:", invalid_indices[:20])
+        print("Number of input tokens:", [ len(tokenized_dataset[i]["input_ids"]) for i in invalid_indices ])
+        #item = tokenized_dataset[invalid_indices[0]]
+        #print(item["problem"] if "problem" in item else item["question"])
+        #print(item["answer"])
+        
+        return
 
     compile_args = {}
     if args.compile:
@@ -107,14 +148,14 @@ def main() -> None:
 
     trainingArguments = TrainingArguments(
         output_dir = args.output_dir,
-        per_device_train_batch_size = 1,
+        per_device_train_batch_size = 2,
         gradient_accumulation_steps = 2,
         fp16 = True,
         logging_steps = 100,
         include_num_input_tokens_seen = "non_padding",
         eval_strategy = "steps",
         eval_steps = 100,
-        train_sampling_strategy = "sequential",     # required for reproducability
+        seed = args.seed ^ 1415961,  # ensuring samplign is reproducible
         **compile_args,
     )
     trainer = Trainer(

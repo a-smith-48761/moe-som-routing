@@ -7,10 +7,16 @@ def preprocess_qa_dataset(examples, tokenizer:PreTrainedTokenizerBase = None):
         "input_ids": [],
         "attention_mask": [],
         "labels": [],
+        "untokenized": [],
     }
 
+    if "question" in examples:
+        qfield = "question"
+    else:
+        qfield = "problem"
+        
     for question, answer in zip(
-        examples["question"],
+        examples[qfield],
         examples["answer"],
     ):
         prompt_messages = [
@@ -52,6 +58,7 @@ def preprocess_qa_dataset(examples, tokenizer:PreTrainedTokenizerBase = None):
         batch["input_ids"].append(full_ids)
         batch["attention_mask"].append([1] * len(full_ids))
         batch["labels"].append(labels)
+        batch["untokenized"].append(question + "\n" + answer)
 
     return batch
 
